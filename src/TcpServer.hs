@@ -6,6 +6,7 @@ import System.IO
 import Control.Exception
 import Control.Monad
 import Data.Char
+import Control.Concurrent
 import qualified Data.ByteString.Char8 as BS
 
 dumpHttpHeader :: Handle -> FilePath -> IO ()
@@ -23,8 +24,11 @@ echoOK request = (dummyHeader `BS.append`) $  BS.pack "\r\n" `BS.append` request
             \HTTP/1.1 200 OK\r\n\
             \Connection: Close\r\n"
 
+infLoop :: BS.ByteString -> BS.ByteString
+infLoop _ = BS.pack . show . or $ repeat False
+
 runServer :: String -> String -> (BS.ByteString -> BS.ByteString) -> IO ()
-runServer address port func = bracket startServer stopServer $ acceptLoop func
+runServer address port func = bracket startServer stopServer acceptLoop
     where
         startServer :: IO Socket
         startServer = do
@@ -38,11 +42,11 @@ runServer address port func = bracket startServer stopServer $ acceptLoop func
             close sock
             putStrLn "Server stopped."
 
-        acceptLoop :: (BS.ByteString -> BS.ByteString) -> Socket -> IO ()
-        acceptLoop transform sock = forever $ do
+        acceptLoop :: Socket -> IO ()
+        acceptLoop sock = forever . forkIO $ do
             (conn, _) <- accept sock
             print =<< isConnected conn
-            recv conn 4096 >>= sendAll conn . transform
+            recv conn 4096 >>= sendAll conn . func
             close conn
 
         createSocket :: IO Socket
