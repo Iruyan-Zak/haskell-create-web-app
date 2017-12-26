@@ -1,12 +1,12 @@
+module TcpServer where
+
 import Network.Socket hiding (send, sendTo, recv, recvFrom)
 import Network.Socket.ByteString
 import System.IO
 import Control.Exception
 import Control.Monad
 import Data.Char
-
-main :: IO ()
-main = runServer "127.0.0.1" "5000" (`dumpHttpHeader` "output.log")
+import qualified Data.ByteString.Char8 as BS
 
 dumpHttpHeader :: Handle -> FilePath -> IO ()
 istream `dumpHttpHeader` filename = withFile filename WriteMode copyHeader
@@ -16,20 +16,42 @@ istream `dumpHttpHeader` filename = withFile filename WriteMode copyHeader
             line <- hGetLine istream
             unless (2 > length line) $ hPutStr outHandle line >> copyHeader outHandle
 
-runServer :: String -> String -> (Handle -> IO a) -> IO a
-runServer addr port = bracket startServer stopServer where
-    startServer :: IO Handle
-    startServer = do
-        let hints = defaultHints{ addrFlags = [AI_NUMERICHOST], addrSocketType = Stream }
+echoOK :: BS.ByteString -> BS.ByteString
+echoOK request = (dummyHeader `BS.append`) $  BS.pack "\r\n" `BS.append` request
+    where
+        dummyHeader = BS.pack "\
+            \HTTP/1.1 200 OK\r\n\
+            \Connection: Close\r\n"
 
-        addrInfo@(AddrInfo _ fam stype pnum addr _):_
-            <- getAddrInfo (Just hints) (Just addr) (Just port)
-        sock <- socket fam stype pnum
-        bind sock addr
-        listen sock 1
-        (conn, _) <- accept sock
-        socketToHandle conn ReadWriteMode
+runServer :: String -> String -> (BS.ByteString -> BS.ByteString) -> IO ()
+runServer address port func = bracket startServer stopServer $ acceptLoop func
+    where
+        startServer :: IO Socket
+        startServer = do
+            sock <- createSocket
+            listen sock 5
+            putStrLn $ "Server is running on " ++ address ++ ":" ++ port ++ "."
+            return sock
 
-    stopServer :: Handle -> IO ()
-    stopServer = hClose
+        stopServer :: Socket -> IO ()
+        stopServer sock = do
+            close sock
+            putStrLn "Server stopped."
+
+        acceptLoop :: (BS.ByteString -> BS.ByteString) -> Socket -> IO ()
+        acceptLoop transform sock = forever $ do
+            (conn, _) <- accept sock
+            print =<< isConnected conn
+            recv conn 4096 >>= sendAll conn . transform
+            close conn
+
+        createSocket :: IO Socket
+        createSocket = do
+            let hints = defaultHints{ addrFlags = [AI_NUMERICHOST], addrSocketType = Stream }
+
+            (AddrInfo _ addressFamily socketType protocolNumber socketAddress _)
+                <- head <$> getAddrInfo (Just hints) (Just address) (Just port)
+            sock <- socket addressFamily socketType protocolNumber
+            bind sock socketAddress
+            return sock
 

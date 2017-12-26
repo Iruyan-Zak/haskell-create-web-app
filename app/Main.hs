@@ -1,6 +1,6 @@
 module Main where
 
-import Lib
+import TcpServer
 
 main :: IO ()
-main = someFunc
+main = runServer "127.0.0.1" "5000" echoOK
