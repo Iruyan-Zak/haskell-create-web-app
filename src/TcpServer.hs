@@ -43,10 +43,11 @@ runServer address port responding = bracket startServer stopServer acceptLoop
             putStrLn "Server stopped."
 
         acceptLoop :: Socket -> IO ()
-        acceptLoop sock = forever . forkIO $ do
+        acceptLoop sock = forever $ do
             (conn, _) <- accept sock
-            recv conn 4096 >>= responding >>= sendAll conn
-            close conn
+            forkIO $ do
+                recv conn 4096 >>= responding >>= sendAll conn
+                close conn
 
         createSocket :: IO Socket
         createSocket = do
