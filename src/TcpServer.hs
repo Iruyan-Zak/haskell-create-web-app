@@ -5,27 +5,8 @@ import Network.Socket.ByteString
 import System.IO
 import Control.Exception
 import Control.Monad
-import Data.Char
 import Control.Concurrent
 import qualified Data.ByteString.Char8 as BS
-
-dumpHttpHeader :: Handle -> FilePath -> IO ()
-istream `dumpHttpHeader` filename = withFile filename WriteMode copyHeader
-    where
-        copyHeader :: Handle -> IO ()
-        copyHeader outHandle = do
-            line <- hGetLine istream
-            unless (2 > length line) $ hPutStr outHandle line >> copyHeader outHandle
-
-echoOK :: BS.ByteString -> BS.ByteString
-echoOK request = (dummyHeader `BS.append`) $  BS.pack "\r\n" `BS.append` request
-    where
-        dummyHeader = BS.pack "\
-            \HTTP/1.1 200 OK\r\n\
-            \Connection: Close\r\n"
-
-infLoop :: BS.ByteString -> BS.ByteString
-infLoop _ = BS.pack . show . or $ repeat False
 
 runServer :: String -> String -> (BS.ByteString -> IO BS.ByteString) -> IO ()
 runServer address port responding = bracket startServer stopServer acceptLoop
