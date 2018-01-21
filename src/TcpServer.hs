@@ -27,8 +27,8 @@ echoOK request = (dummyHeader `BS.append`) $  BS.pack "\r\n" `BS.append` request
 infLoop :: BS.ByteString -> BS.ByteString
 infLoop _ = BS.pack . show . or $ repeat False
 
-runServer :: String -> String -> (BS.ByteString -> BS.ByteString) -> IO ()
-runServer address port func = bracket startServer stopServer acceptLoop
+runServer :: String -> String -> (BS.ByteString -> IO BS.ByteString) -> IO ()
+runServer address port responding = bracket startServer stopServer acceptLoop
     where
         startServer :: IO Socket
         startServer = do
@@ -45,8 +45,7 @@ runServer address port func = bracket startServer stopServer acceptLoop
         acceptLoop :: Socket -> IO ()
         acceptLoop sock = forever . forkIO $ do
             (conn, _) <- accept sock
-            print =<< isConnected conn
-            recv conn 4096 >>= sendAll conn . func
+            recv conn 4096 >>= responding >>= sendAll conn
             close conn
 
         createSocket :: IO Socket
