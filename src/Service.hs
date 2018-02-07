@@ -3,7 +3,6 @@
 module Service where
 
 import qualified Data.ByteString.Char8 as BS
-import Prelude hiding (head, tail)
 import Safe
 
 
@@ -28,7 +27,7 @@ statusDescription 200 = "OK"
 
 
 serve :: (Request -> Responce) -> Responding
-serve func = return . maybe "" id . fmap (rawResponce . func) . parseRequest
+serve func = return . maybe "" (rawResponce . func) . parseRequest
 
 
 rawResponce :: Responce -> BS.ByteString
